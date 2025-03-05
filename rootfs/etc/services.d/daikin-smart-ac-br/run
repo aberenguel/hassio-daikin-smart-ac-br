@@ -1,0 +1,33 @@
+#!/usr/bin/with-contenv bashio
+# ==============================================================================
+# Start the example service
+# s6-overlay docs: https://github.com/just-containers/s6-overlay
+# ==============================================================================
+
+bashio::log.info "Preparing to start..."
+
+## Get credentials from the user config options.
+export DAIKINBR_CONFIG_ACCOUNT_EMAIL=$(bashio::config 'daikin_email')
+export DAIKINBR_CONFIG_ACCOUNT_PASSWORD=$(bashio::config 'daikin_password')
+
+# if (bashio::config.is_empty 'mqtt' || ! (bashio::config.has_value 'mqtt.server' || bashio::config.has_value 'mqtt.user' || bashio::config.has_value 'mqtt.password')) && bashio::var.has_value "$(bashio::services 'mqtt')"; then
+#     if bashio::var.true "$(bashio::services 'mqtt' 'ssl')"; then
+#         export DAIKINBR_CONFIG_MQTT_SERVER="mqtts://$(bashio::services 'mqtt' 'host'):$(bashio::services 'mqtt' 'port')"
+#     else
+#         export DAIKINBR_CONFIG_MQTT_SERVER="mqtt://$(bashio::services 'mqtt' 'host'):$(bashio::services 'mqtt' 'port')"
+#     fi
+#     export DAIKINBR_CONFIG_MQTT_USER="$(bashio::services 'mqtt' 'username')"
+#     export DAIKINBR_CONFIG_MQTT_PASSWORD="$(bashio::services 'mqtt' 'password')"
+# fi
+
+export DAIKINBR_CONFIG_MQTT_HOST="$(bashio::services 'mqtt' 'host')"
+export DAIKINBR_CONFIG_MQTT_PORT="$(bashio::services 'mqtt' 'port')"
+export DAIKINBR_CONFIG_MQTT_USER="$(bashio::services 'mqtt' 'username')"
+export DAIKINBR_CONFIG_MQTT_PASSWORD="$(bashio::services 'mqtt' 'password')"
+
+
+bashio::log.info "Starting Daiking Smart AC Brasil..."
+
+cd /app
+
+go run main.go
