@@ -1,0 +1,8 @@
+---
+configuration:
+  daikin_email:
+    name: E-mail
+    description: Endereço de e-mail utilizado no aplicativo Daikin Smart AC - Brasil.
+  daikin_password:
+    name: Senha
+    description: Senha utilizada no aplicativo Daikin Smart AC - Brasil.

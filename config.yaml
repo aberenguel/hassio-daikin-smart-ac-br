@@ -1,0 +1,16 @@
+name: "Daikin Brasil"
+description: "Add-on para Ar Condicionado compatível com o aplicativo Daikin Smart AC - Brasil"
+version: "1.0.0"
+slug: "daikin_brasil"
+init: false
+map:
+  - addon_config:rw
+arch:
+  - aarch64
+  - amd64
+  - armhf
+  - armv7
+  - i386
+schema:
+  daikin_email: email
+  daikin_password: password
