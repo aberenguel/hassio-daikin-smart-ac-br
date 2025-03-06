@@ -92,7 +92,7 @@ func main() {
 	if shouldReloadThings || shouldReloadAddresses {
 		err = c.Write(configFilePath)
 		if err != nil {
-			slog.Error("Error writing config file:" + configFilePath, slog.Any("error", err))
+			slog.Error("Error writing config file:"+configFilePath, slog.Any("error", err))
 			os.Exit(1)
 		}
 	}
@@ -245,7 +245,7 @@ func startServer(c *config.Config) error {
 		deviceAddress := d.Address
 		if deviceAddress == "" {
 			deviceAddress = fmt.Sprintf("http://%s.local.:%d", d.APN, daikinApiPort)
-			slog.Warn("device address not defined. Please configure it in '/addons_config/<this_addon>/config.yaml'. Using: " + deviceAddress, slog.String("ThingID", d.ThingId), slog.String("APN", d.APN))
+			slog.Warn("device address not defined. Please configure it in '/addons_config/<this_addon>/config.yaml'. Using: "+deviceAddress, slog.String("ThingID", d.ThingId), slog.String("APN", d.APN))
 		}
 
 		// fix host only define address
@@ -255,7 +255,6 @@ func startServer(c *config.Config) error {
 		if !strings.Contains(deviceAddress, ":") {
 			deviceAddress = fmt.Sprintf("%s:%d", deviceAddress, daikinApiPort)
 		}
-
 
 		url, err := url.Parse(deviceAddress)
 		if err != nil {
