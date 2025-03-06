@@ -3,6 +3,7 @@ description: "Add-on para Ar Condicionado compatível com o aplicativo Daikin Sm
 version: "0.0.5"
 slug: "daikin_brasil"
 init: false
+host_network: true
 services:
   - mqtt:need
 map:
