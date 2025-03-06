@@ -105,6 +105,18 @@ func main() {
 	}
 }
 
+// getThings retrieves the list of Things from the AWS IoT Core service using the provided username and password.
+// It fetches the account information, calls the ManageThing endpoint, and parses the returned data to extract the list of Things.
+//
+// Initially copied from https://github.com/crossworth/daikin/blob/22ece1dda915aba812c93bfcaaee9d9cd34f343a/cmd/extract-secret-key/handler.go
+//
+// Parameters:
+// - username: The username for authenticating with the Daikin Smart AC - Brasil app.
+// - password: The password for authenticating with the Daikin Smart AC - Brasil app.
+//
+// Return Value:
+// - things: A slice of Thing structs representing the retrieved Things.
+// - err: An error if any occurred during the retrieval process. If the error is due to invalid credentials, it will be logged.
 func getThings(username, password string) (things []Thing, err error) {
 
 	ctx := context.Background()
@@ -220,6 +232,17 @@ func reloadAddresses(c *config.Config) {
 	}
 }
 
+// startServer initializes and starts the server responsible for managing the Daikin AC devices.
+// It connects to MQTT broker, initializes each device, and handles device state updates and commands.
+//
+// Initially copied from https://github.com/billbatista/ha-daikin-smart-ac-br/blob/b5331a62e3f42690f8bf55e0f66b7d5fb8810292/cmd/server.go
+
+// Parameters:
+// c - A pointer to the configuration struct containing the necessary information for initializing the devices.
+//
+// Return Value:
+// An error if there is an issue connecting to the MQTT broker or initializing the devices.
+// nil if the server starts successfully.
 func startServer(c *config.Config) error {
 
 	mqttClient := pahomqtt.NewClient(

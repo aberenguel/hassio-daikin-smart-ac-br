@@ -6,13 +6,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Initially copied from https://github.com/billbatista/ha-daikin-smart-ac-br/blob/415d10f7730d6a586d801529fcc5e8713cd45a7f/config/config.go
+
 type Config struct {
 	Mqtt    *Mqtt     `yaml:"mqtt"`
 	Devices []*Device `yaml:"devices"`
 }
 
 type Mqtt struct {
-	Address   string `yaml:"address"`
+	Address  string `yaml:"address"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 }
