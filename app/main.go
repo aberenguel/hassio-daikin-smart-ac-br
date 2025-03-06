@@ -58,8 +58,8 @@ func main() {
 	}
 
 	// Fill MQTT configuration if necessary
-	if c.Mqtt.Server == "" && c.Mqtt.Username == "" && c.Mqtt.Password == "" {
-		c.Mqtt.Server = os.Getenv("DAIKINBR_CONFIG_MQTT_SERVER")
+	if c.Mqtt.Address == "" && c.Mqtt.Username == "" && c.Mqtt.Password == "" {
+		c.Mqtt.Address = os.Getenv("DAIKINBR_CONFIG_MQTT_ADDRESS")
 		c.Mqtt.Username = os.Getenv("DAIKINBR_CONFIG_MQTT_USER")
 		c.Mqtt.Password = os.Getenv("DAIKINBR_CONFIG_MQTT_PASSWORD")
 	}
@@ -92,7 +92,7 @@ func main() {
 	if shouldReloadThings || shouldReloadAddresses {
 		err = c.Write(configFilePath)
 		if err != nil {
-			slog.Error("Error writing config file:" + configFilePath)
+			slog.Error("Error writing config file:" + configFilePath, slog.Any("error", err))
 			os.Exit(1)
 		}
 	}
@@ -220,7 +220,7 @@ func startServer(c *config.Config) error {
 
 	mqttClient := pahomqtt.NewClient(
 		pahomqtt.NewClientOptions().
-			AddBroker(c.Mqtt.Server).
+			AddBroker(c.Mqtt.Address).
 			SetUsername(c.Mqtt.Username).
 			SetPassword(c.Mqtt.Password),
 	)

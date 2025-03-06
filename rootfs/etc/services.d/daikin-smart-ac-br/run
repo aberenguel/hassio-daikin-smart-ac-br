@@ -15,9 +15,9 @@ export DAIKINBR_CONFIG_ACCOUNT_PASSWORD=$(bashio::config 'daikin_password')
 
 # Read MQTT configuration
 if bashio::var.true "$(bashio::services 'mqtt' 'ssl')"; then
-    export DAIKINBR_CONFIG_MQTT_SERVER="ssl://$(bashio::services 'mqtt' 'host'):$(bashio::services 'mqtt' 'port')"
+    export DAIKINBR_CONFIG_MQTT_ADDRESS="ssl://$(bashio::services 'mqtt' 'host'):$(bashio::services 'mqtt' 'port')"
 else
-    export DAIKINBR_CONFIG_MQTT_SERVER="tcp://$(bashio::services 'mqtt' 'host'):$(bashio::services 'mqtt' 'port')"
+    export DAIKINBR_CONFIG_MQTT_ADDRESS="tcp://$(bashio::services 'mqtt' 'host'):$(bashio::services 'mqtt' 'port')"
 fi
 export DAIKINBR_CONFIG_MQTT_USER="$(bashio::services 'mqtt' 'username')"
 export DAIKINBR_CONFIG_MQTT_PASSWORD="$(bashio::services 'mqtt' 'password')"

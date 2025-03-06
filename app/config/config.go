@@ -12,7 +12,7 @@ type Config struct {
 }
 
 type Mqtt struct {
-	Server   string `yaml:"address"`
+	Address   string `yaml:"address"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
 }
