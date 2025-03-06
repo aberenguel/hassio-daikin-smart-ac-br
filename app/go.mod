@@ -1,12 +1,15 @@
-module github.com/crossworth/daikin/ecmd/extract-secret-key
+module github.com/aberenguel/hassio-daikin-smart-ac-br/app
 
 go 1.23.4
 
 require (
 	github.com/billbatista/ha-daikin-smart-ac-br v0.0.0-20250305170913-b5331a62e3f4
-	github.com/crossworth/daikin/aws v0.0.0-20250124001946-3385b3802534
-	github.com/crossworth/daikin/iotalabs v0.0.0-20250124001946-3385b3802534
+	github.com/crossworth/daikin v0.0.0-20250305233041-6c54ab509ce3
+	github.com/crossworth/daikin/aws v0.0.0-20250305233041-6c54ab509ce3
+	github.com/crossworth/daikin/iotalabs v0.0.0-20250305233041-6c54ab509ce3
+	github.com/eclipse/paho.mqtt.golang v1.5.0
 	github.com/tidwall/gjson v1.18.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -27,14 +30,18 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.28.10 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.33.9 // indirect
 	github.com/aws/smithy-go v1.22.1 // indirect
-	github.com/eclipse/paho.mqtt.golang v1.5.0 // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/crossworth/daikin/types v0.0.0-20250124003104-9f6d52a59699 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/grandcat/zeroconf v1.0.0 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
+	github.com/miekg/dns v1.1.27 // indirect
 	github.com/tidwall/match v1.1.1 // indirect
 	github.com/tidwall/pretty v1.2.0 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasthttp v1.51.0 // indirect
+	golang.org/x/crypto v0.25.0 // indirect
 	golang.org/x/net v0.27.0 // indirect
 	golang.org/x/sync v0.11.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	golang.org/x/sys v0.22.0 // indirect
 )

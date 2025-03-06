@@ -2,118 +2,116 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"fmt"
 	"log"
+	"log/slog"
+	"net/url"
 	"os"
+	"os/signal"
+	"strconv"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
-	yaml "gopkg.in/yaml.v3"
-
+	"github.com/crossworth/daikin"
 	"github.com/crossworth/daikin/aws"
 	"github.com/crossworth/daikin/iotalabs"
 	"github.com/tidwall/gjson"
 
-	"github.com/billbatista/ha-daikin-smart-ac-br/cmd"
-	"github.com/billbatista/ha-daikin-smart-ac-br/config"
+	"github.com/aberenguel/hassio-daikin-smart-ac-br/app/config"
+
+	daikin2 "github.com/billbatista/ha-daikin-smart-ac-br/daikin"
+	"github.com/billbatista/ha-daikin-smart-ac-br/ha"
+
+	pahomqtt "github.com/eclipse/paho.mqtt.golang"
 )
 
+const configFilePath = "/config/config.yaml"
+const daikinApiPort = 15914
+
 type Thing struct {
-	ThingID   string `json:"thingID"`
-	ThingName string `json:"thingName"`
+	ID        string `json:"ID"`
+	Name      string `json:"Name"`
+	APN       string `json:"APN"`
 	SecretKey string `json:"secretKey"`
 	Heat      bool   `json:"heat"`
 }
 
 func main() {
 
-	configChanged := false
+	shouldReloadThings := false
 
 	// Read configuration
-	c, err := config.NewConfig("/config/config.yaml")
+	c, err := config.Read(configFilePath)
 	if err != nil {
-		log.Print("No config file exists (/config/config.yaml). A new one will be created.")
-		c = &config.Config{}
-		configChanged = true
+		slog.Info("No config file exists. A new one will be created at " + configFilePath)
+		c = config.New()
+		shouldReloadThings = true
 	}
 
 	// Mark existing devices
 	seen := make(map[string]bool)
 	for _, device := range c.Devices {
-		seen[device.SecretKey] = true
+		seen[device.ThingId] = true
 	}
 
 	// Fill MQTT configuration if necessary
-	if c.Mqtt.Host == "" && c.Mqtt.Port == "" && c.Mqtt.Username == "" && c.Mqtt.Password == "" {
-		c.Mqtt.Host = os.Getenv("DAIKINBR_CONFIG_MQTT_HOST")
-		c.Mqtt.Port = os.Getenv("DAIKINBR_CONFIG_MQTT_PORT")
+	if c.Mqtt.Server == "" && c.Mqtt.Username == "" && c.Mqtt.Password == "" {
+		c.Mqtt.Server = os.Getenv("DAIKINBR_CONFIG_MQTT_SERVER")
 		c.Mqtt.Username = os.Getenv("DAIKINBR_CONFIG_MQTT_USER")
 		c.Mqtt.Password = os.Getenv("DAIKINBR_CONFIG_MQTT_PASSWORD")
 	}
 
-	// Fetch secretKey and devices from cloud
-	daikin_email := os.Getenv("DAIKINBR_CONFIG_ACCOUNT_EMAIL")
-	daikin_password := os.Getenv("DAIKINBR_CONFIG_ACCOUNT_PASSWORD")
-	if daikin_email == "" || daikin_password == "" {
-		log.Fatalf("Missing env vars: DAIKINBR_CONFIG_ACCOUNT_EMAIL | DAIKINBR_CONFIG_ACCOUNT_PASSWORD")
+	if !shouldReloadThings {
+		shouldReloadThings, _ = strconv.ParseBool(os.Getenv("DAIKINBR_CONFIG_RELOAD_THINGS"))
 	}
-	things := getThings(daikin_email, daikin_password)
 
-	// Complete configuration
-	newDevice := false
-	for _, thing := range things {
-		if !seen[thing.SecretKey] {
-			d := config.Devices{
-				Name:      thing.ThingName,
-				SecretKey: thing.SecretKey,
-				UniqueId:  thing.ThingID,
-				FanModes:  []string{"auto", "low", "medium", "high"},
-			}
-			if thing.Heat {
-				d.OperationModes = []string{"auto", "off", "cool", "heat", "dry", "fan_only"}
-			} else {
-				d.OperationModes = []string{"auto", "off", "cool", "dry", "fan_only"}
-			}
+	if shouldReloadThings {
+		reloadThings(c)
+	}
 
-			c.Devices = append(c.Devices, d)
-			newDevice = true
-			configChanged = true
+	// check addresses
+	shouldReloadAddresses := false
+	for _, d := range c.Devices {
+		if d.Address == "" {
+			shouldReloadAddresses = true
 		}
 	}
 
+	if !shouldReloadAddresses {
+		shouldReloadAddresses, _ = strconv.ParseBool(os.Getenv("DAIKINBR_CONFIG_RELOAD_ADDRESSES"))
+	}
+
+	if shouldReloadAddresses {
+		reloadAddresses(c)
+	}
+
 	// write configuration
-	if configChanged {
-		writeConfig(c, "/config/config.yaml")
+	if shouldReloadThings || shouldReloadAddresses {
+		err = c.Write(configFilePath)
+		if err != nil {
+			slog.Error("Error writing config file:" + configFilePath)
+			os.Exit(1)
+		}
 	}
 
-	// Only starts server if there is no new device
-	if !newDevice {
-		writeConfig(c, "./config.yaml")
-		cmd.Server(context.Background())
-		os.Remove("./config.yaml")
+	// Starts the server
+	err = startServer(c)
+	if err != nil {
+		slog.Error("Error starting server", slog.Any("error", err))
+		os.Exit(1)
 	}
 }
 
-func writeConfig(c *config.Config, file string) error {
-
-	out, err := yaml.Marshal(c)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(file, out, 0)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func getThings(username, password string) (things []Thing) {
+func getThings(username, password string) (things []Thing, err error) {
 
 	ctx := context.Background()
 
 	accountInfo, err := aws.GetAccountInfo(ctx, username, password)
 	if err != nil {
-		log.Printf("error getting account info: %v\n", err)
+		slog.Error("error getting account info", slog.Any("error", err), slog.String("username", username))
 		return
 	}
 
@@ -122,7 +120,7 @@ func getThings(username, password string) (things []Thing) {
 	if err != nil {
 		// ensure we don't log PII data
 		if !strings.HasPrefix(err.Error(), "invalidResponse") {
-			log.Printf("error calling managething: %v\n", err)
+			slog.Error("error calling ManageThing", slog.Any("error", err))
 		}
 		return
 	}
@@ -130,11 +128,179 @@ func getThings(username, password string) (things []Thing) {
 	// parse the things
 	for _, t := range gjson.Get(raw, "json_response.things").Array() {
 		things = append(things, Thing{
-			ThingID:   t.Get("thing_id").String(),
-			ThingName: t.Get("thing_metadata.thing_name").String(),
+			ID:        t.Get("thing_id").String(),
+			Name:      t.Get("thing_metadata.thing_name").String(),
+			APN:       t.Get("thing_metadata.thing_apn").String(),
 			SecretKey: strings.TrimSuffix(t.Get("thing_metadata.thing_secret_key").String(), "\n"),
 			Heat:      strings.Contains(t.Get("thing_metadata.thing_feature_data").String(), "HEAT_PUMP"),
 		})
 	}
 	return
+}
+
+func reloadThings(c *config.Config) {
+
+	// Fetch secretKey and devices from cloud
+	daikin_email := os.Getenv("DAIKINBR_CONFIG_ACCOUNT_EMAIL")
+	daikin_password := os.Getenv("DAIKINBR_CONFIG_ACCOUNT_PASSWORD")
+	if daikin_email == "" || daikin_password == "" {
+		log.Fatalf("Missing env vars: DAIKINBR_CONFIG_ACCOUNT_EMAIL | DAIKINBR_CONFIG_ACCOUNT_PASSWORD")
+	}
+
+	slog.Info("getting things from AWS server")
+
+	things, err := getThings(daikin_email, daikin_password)
+	if err != nil {
+		log.Fatalf("Error getting things: %v", err)
+	}
+
+	// Complete configuration
+	for _, thing := range things {
+
+		d := c.LookupDeviceByThingID(thing.ID)
+
+		if d != nil {
+
+			slog.Info("updating device", slog.String("thingID", thing.ID), slog.String("APN", thing.APN))
+
+			// update device
+			d.Name = thing.Name
+			d.APN = thing.APN
+			d.SecretKey = thing.SecretKey
+
+		} else {
+
+			slog.Info("creating device", slog.String("thingID", thing.ID), slog.String("APN", thing.APN))
+
+			// create new device
+			d = &config.Device{
+				ThingId:        thing.ID,
+				MqttId:         strings.ToLower(thing.APN),
+				APN:            thing.APN,
+				Name:           thing.Name,
+				SecretKey:      thing.SecretKey,
+				FanModes:       []string{"auto", "low", "medium", "high"},
+				OperationModes: []string{"auto", "off", "cool", "dry", "fan_only"},
+			}
+
+			if thing.Heat {
+				d.OperationModes = append(d.OperationModes, "heat")
+			}
+
+			c.Devices = append(c.Devices, d)
+		}
+	}
+}
+
+func reloadAddresses(c *config.Config) {
+
+	timeout := 5 * time.Second
+
+	slog.Info("discovering devices in local network.", slog.Any("time", timeout))
+
+	devices, err := daikin.DiscoveryDevices(context.Background(), timeout)
+	if err != nil {
+		slog.Error("error discovering devices", slog.Any("error", err))
+	} else {
+		for _, di := range devices {
+			slog.Info("discovered device:", slog.Any("device", di))
+
+			d := c.LookupDeviceByAPN(di.APN)
+			if d != nil {
+				d.Address = fmt.Sprintf("http://%s:%d", di.Hostname, daikinApiPort)
+				slog.Info("updated device address in config", slog.Any("address", d.Address))
+			} else {
+				slog.Warn("device not found in config", slog.Any("device", di))
+			}
+		}
+	}
+}
+
+func startServer(c *config.Config) error {
+
+	mqttClient := pahomqtt.NewClient(
+		pahomqtt.NewClientOptions().
+			AddBroker(c.Mqtt.Server).
+			SetUsername(c.Mqtt.Username).
+			SetPassword(c.Mqtt.Password),
+	)
+	if token := mqttClient.Connect(); token.Wait() && token.Error() != nil {
+		slog.Error("failed to connect to MQTT", slog.Any("error", token.Error()))
+		return token.Error()
+	}
+	slog.Info("connected to MQTT")
+
+	defer func() {
+		slog.Info("signal caught - exiting")
+		mqttClient.Disconnect(1000)
+		slog.Info("shutdown complete")
+	}()
+
+	for _, d := range c.Devices {
+
+		if d.Address == "" {
+			slog.Error("device address not defined. Please configure it in '/addons_config/<this_addon>/config.yaml'.", slog.String("ThingID", d.ThingId), slog.String("APN", d.APN))
+			continue
+		}
+
+		address := d.Address
+		if !strings.HasPrefix(address, "http") {
+			address = "http://" + address
+		}
+		if !strings.Contains(address, ":") {
+			address = address + ":15914"
+		}
+		url, err := url.Parse(address)
+		if err != nil {
+			slog.Error("invalid device address", slog.Any("error", err), slog.Any("device", d))
+			continue
+		}
+
+		secretKey, err := base64.StdEncoding.DecodeString(d.SecretKey)
+		if err != nil {
+			slog.Error("invalid secret key", slog.Any("error", err), slog.Any("device", d))
+			continue
+		}
+
+		slog.Info("initializing device", slog.String("ThingId", d.ThingId), slog.String("MqttID", d.MqttId), slog.Any("url", url), slog.String("name", d.Name), slog.String("APN", d.APN))
+
+		client := daikin2.NewClient(url, secretKey)
+		ac := ha.NewClimate(client, mqttClient, d.Name, d.MqttId, d.OperationModes, d.FanModes)
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			ac.PublishDiscovery()
+			wg.Done()
+		}()
+		wg.Wait()
+
+		ctx := context.Background()
+
+		_, err = client.State(ctx)
+		if err != nil {
+			slog.Error("could not get ac state", slog.Any("error", err), slog.Any("device", d))
+			ac.PublishUnavailable(ctx)
+		}
+
+		if err == nil {
+			go func() {
+				ac.PublishAvailable()
+				ac.StateUpdate(ctx)
+				ac.CommandSubscriptions()
+			}()
+		}
+		defer func() {
+			ac.PublishUnavailable(ctx)
+		}()
+	}
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, os.Interrupt)
+	signal.Notify(sig, syscall.SIGTERM)
+
+	<-sig
+
+	return nil
+
 }
