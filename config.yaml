@@ -1,6 +1,6 @@
 name: "Daikin Brasil"
 description: "Add-on para Ar Condicionado compatível com o aplicativo Daikin Smart AC - Brasil"
-version: "0.0.2"
+version: "0.0.5"
 slug: "daikin_brasil"
 init: false
 services:

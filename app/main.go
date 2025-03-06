@@ -194,23 +194,27 @@ func reloadThings(c *config.Config) {
 
 func reloadAddresses(c *config.Config) {
 
-	timeout := 5 * time.Second
+	timeout := 10 * time.Second
 
 	slog.Info("discovering devices in local network.", slog.Any("time", timeout))
 
-	devices, err := daikin.DiscoveryDevices(context.Background(), timeout)
+	discoveredDevices, err := daikin.DiscoveryDevices(context.Background(), timeout)
 	if err != nil {
 		slog.Error("error discovering devices", slog.Any("error", err))
 	} else {
-		for _, di := range devices {
-			slog.Info("discovered device:", slog.Any("device", di))
 
-			d := c.LookupDeviceByAPN(di.APN)
+		if len(discoveredDevices) == 0 {
+			slog.Info("no devices were discovered in local network")
+		}
+		for _, discoveredDevice := range discoveredDevices {
+			slog.Info("discovered device:", slog.Any("device", discoveredDevice))
+
+			d := c.LookupDeviceByAPN(discoveredDevice.APN)
 			if d != nil {
-				d.Address = fmt.Sprintf("http://%s:%d", di.Hostname, daikinApiPort)
+				d.Address = fmt.Sprintf("http://%s:%d", discoveredDevice.Hostname, daikinApiPort)
 				slog.Info("updated device address in config", slog.Any("address", d.Address))
 			} else {
-				slog.Warn("device not found in config", slog.Any("device", di))
+				slog.Warn("device not found in config", slog.Any("device", discoveredDevice))
 			}
 		}
 	}
@@ -238,19 +242,22 @@ func startServer(c *config.Config) error {
 
 	for _, d := range c.Devices {
 
-		if d.Address == "" {
-			slog.Error("device address not defined. Please configure it in '/addons_config/<this_addon>/config.yaml'.", slog.String("ThingID", d.ThingId), slog.String("APN", d.APN))
-			continue
+		deviceAddress := d.Address
+		if deviceAddress == "" {
+			deviceAddress = fmt.Sprintf("http://%s.local.:%d", d.APN, daikinApiPort)
+			slog.Warn("device address not defined. Please configure it in '/addons_config/<this_addon>/config.yaml'. Using: " + deviceAddress, slog.String("ThingID", d.ThingId), slog.String("APN", d.APN))
 		}
 
-		address := d.Address
-		if !strings.HasPrefix(address, "http") {
-			address = "http://" + address
+		// fix host only define address
+		if !strings.HasPrefix(deviceAddress, "http") {
+			deviceAddress = "http://" + deviceAddress
 		}
-		if !strings.Contains(address, ":") {
-			address = address + ":15914"
+		if !strings.Contains(deviceAddress, ":") {
+			deviceAddress = fmt.Sprintf("%s:%d", deviceAddress, daikinApiPort)
 		}
-		url, err := url.Parse(address)
+
+
+		url, err := url.Parse(deviceAddress)
 		if err != nil {
 			slog.Error("invalid device address", slog.Any("error", err), slog.Any("device", d))
 			continue
